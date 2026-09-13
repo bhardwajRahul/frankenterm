@@ -1865,6 +1865,7 @@ mod tests {
         let json = serde_json::to_string(&config).unwrap();
         let back: TelemetryConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(back.buffer_capacity, config.buffer_capacity);
+        assert_eq!(back.latency_envelope, config.latency_envelope);
     }
 
     #[test]
@@ -1895,6 +1896,7 @@ mod tests {
         assert!(!back.per_process_metrics);
         assert_eq!(back.mux_server_pid, 42);
         assert!(back.latency_envelope.enabled);
+        assert_eq!(back.latency_envelope, config.latency_envelope);
     }
 
     #[test]

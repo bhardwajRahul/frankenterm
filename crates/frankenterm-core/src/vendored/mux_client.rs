@@ -6551,7 +6551,7 @@ mod tests {
             let listener = compat_unix::bind(&socket_path)
                 .await
                 .expect("bind listener");
-            let (request_seen_tx, request_seen_rx) = std::sync::mpsc::channel();
+            let (request_seen_tx, request_seen_rx) = crate::runtime_async::oneshot::channel();
 
             let server = task::spawn(async move {
                 let (mut stream, _) = listener.accept().await.expect("accept");
@@ -6621,9 +6621,13 @@ mod tests {
                 .await
                 .expect("send request without awaiting response");
 
-            request_seen_rx
-                .recv_timeout(Duration::from_secs(2))
-                .expect("server should observe the request frame");
+            timeout(
+                Duration::from_secs(2),
+                crate::runtime_async::oneshot_recv(request_seen_rx),
+            )
+            .await
+            .expect("server request observation must be bounded")
+            .expect("server should observe the request frame");
 
             let err = client
                 .await_response_with_cx(&cancelled_cx, serial)
@@ -9506,8 +9510,8 @@ mod tests {
             let listener = compat_unix::bind(&socket_path)
                 .await
                 .expect("bind listener");
-            let request_observed = Arc::new(AtomicBool::new(false));
-            let server_observed = Arc::clone(&request_observed);
+            let (request_observed_tx, request_observed_rx) =
+                crate::runtime_async::oneshot::channel();
 
             let server = task::spawn(async move {
                 let (mut stream, _) = listener.accept().await.expect("accept");
@@ -9548,7 +9552,9 @@ mod tests {
                                 .expect("write client response");
                             }
                             Pdu::GetPaneRenderChanges(_) => {
-                                server_observed.store(true, Ordering::SeqCst);
+                                request_observed_tx
+                                    .send(())
+                                    .expect("signal observed render request");
                                 let mut eof_probe = [0u8; 1];
                                 return unix_stream_read(&mut stream, &mut eof_probe)
                                     .await
@@ -9571,21 +9577,21 @@ mod tests {
             let targets = [11_u64];
             let mut batch =
                 Box::pin(client.get_pane_render_changes_batch(&targets, 1, Duration::from_secs(5)));
-            std::future::poll_fn(|task_cx| {
-                match std::future::Future::poll(batch.as_mut(), task_cx) {
-                    std::task::Poll::Ready(result) => {
-                        panic!("stalled batch unexpectedly completed: {result:?}")
-                    }
-                    std::task::Poll::Pending if request_observed.load(Ordering::SeqCst) => {
-                        std::task::Poll::Ready(())
-                    }
-                    std::task::Poll::Pending => {
-                        task_cx.waker().wake_by_ref();
-                        std::task::Poll::Pending
-                    }
+            // Wait for the server's actual signal. Self-waking this task in
+            // a loop can starve that server on the current-thread runtime.
+            match futures::future::select(
+                batch.as_mut(),
+                Box::pin(crate::runtime_async::oneshot_recv(request_observed_rx)),
+            )
+            .await
+            {
+                futures::future::Either::Left((result, _)) => {
+                    panic!("stalled batch unexpectedly completed: {result:?}")
                 }
-            })
-            .await;
+                futures::future::Either::Right((observed, _)) => {
+                    observed.expect("server should observe the render request");
+                }
+            }
             drop(batch);
 
             assert!(client.connection_poisoned);

@@ -7654,13 +7654,16 @@ async fn sleep_with_cx_interruptible_using(
 
     match select(timer, cancellation).await {
         Either::Left((Ok(()), _)) => {
-            service.record_wake_completion(cx_timer_now(cx).duration_since(effective_deadline));
             cx.checkpoint().map_err(|_error| {
                 service.classify_and_record_context_termination(
                     cx,
                     SleepWithCxErrorKind::ContextFailure,
                 )
-            })
+            })?;
+            // Sleep can become ready because cancellation was requested.
+            // Only a successful checkpoint establishes a timer completion.
+            service.record_wake_completion(cx_timer_now(cx).duration_since(effective_deadline));
+            Ok(())
         }
         Either::Left((Err(_elapsed), _)) => {
             // budget_sleep's sole error is an elapsed capability deadline.
@@ -9731,7 +9734,7 @@ mod tests {
             }
             release_tx.send(()).expect("release short-timer publisher");
             let completed = done_rx.recv_timeout(Duration::from_secs(1));
-            // Explicitly wake the real reactor to drain the negative control;
+            // Explicitly wake the real reactor to drain a failed timer;
             // neither teardown nor a five-second timer is the test watchdog.
             reactor.wake().expect("wake reactor for bounded cleanup");
             if completed.is_err() {
@@ -9742,19 +9745,15 @@ mod tests {
             }
             drop(task);
             drop(runtime);
-            if mode != "raw" {
-                let (result, elapsed) = completed.unwrap_or_else(|error| {
-                    panic!("{mode}: short timer must interrupt the long reactor wait: {error}")
-                });
-                assert!(result.is_ok(), "budget sleep failed: {result:?}");
-                assert!(elapsed >= Duration::from_millis(20));
-                assert!(elapsed < Duration::from_secs(1));
-            } else {
-                assert!(
-                    matches!(completed, Err(std::sync::mpsc::RecvTimeoutError::Timeout)),
-                    "unnotified timer must expose the parked-leader regression"
-                );
-            }
+            // Asupersync 0.5 also wakes registered reactors directly when a
+            // new earlier timer is published. Raw sleep is now a positive
+            // acceptance case for that dependency contract.
+            let (result, elapsed) = completed.unwrap_or_else(|error| {
+                panic!("{mode}: short timer must interrupt the long reactor wait: {error}")
+            });
+            assert!(result.is_ok(), "budget sleep failed: {result:?}");
+            assert!(elapsed >= Duration::from_millis(20));
+            assert!(elapsed < Duration::from_secs(1));
         }
     }
 

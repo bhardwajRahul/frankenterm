@@ -160,9 +160,34 @@ pub enum PaneNode {
         is_active: bool,
     },
     /// Horizontal split: children arranged top-to-bottom.
-    HSplit { children: Vec<(f64, PaneNode)> },
+    HSplit {
+        #[serde(deserialize_with = "deserialize_split_children")]
+        children: Vec<(f64, PaneNode)>,
+    },
     /// Vertical split: children arranged left-to-right.
-    VSplit { children: Vec<(f64, PaneNode)> },
+    VSplit {
+        #[serde(deserialize_with = "deserialize_split_children")]
+        children: Vec<(f64, PaneNode)>,
+    },
+}
+
+fn deserialize_split_children<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<(f64, PaneNode)>, D::Error> {
+    // Preserve the wire array of [ratio, node] pairs while decoding numbers
+    // buffered by the enclosing internally tagged enum.
+    #[derive(Deserialize)]
+    struct Child(
+        #[serde(deserialize_with = "crate::deserialize_finite_f64")] f64,
+        PaneNode,
+    );
+
+    Vec::<Child>::deserialize(deserializer).map(|children| {
+        children
+            .into_iter()
+            .map(|Child(ratio, node)| (ratio, node))
+            .collect()
+    })
 }
 
 /// Result of attempting to reconstruct a split tree.
@@ -3233,11 +3258,12 @@ mod tests {
         };
         let json = serde_json::to_string(&node).unwrap();
         let parsed: PaneNode = serde_json::from_str(&json).unwrap();
-        if let PaneNode::HSplit { children } = parsed {
-            assert!((children[0].0 - 0.333_333_333).abs() < 0.01);
-            assert!((children[1].0 - 0.666_666_667).abs() < 0.01);
-        } else {
-            panic!("expected HSplit");
+        assert_eq!(parsed, node);
+        for ratio in [r#""0.5""#, "null", "true", "{}", "1e400"] {
+            let json = format!(
+                r#"{{"type":"HSplit","children":[[{ratio},{{"type":"Leaf","pane_id":1,"rows":24,"cols":80}}]]}}"#
+            );
+            assert!(serde_json::from_str::<PaneNode>(&json).is_err());
         }
     }
 

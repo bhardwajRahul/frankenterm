@@ -48,7 +48,10 @@ pub enum LayoutNode {
         #[serde(default)]
         role: Option<String>,
         /// Relative weight for sizing (default 1.0).
-        #[serde(default = "default_weight")]
+        #[serde(
+            default = "default_weight",
+            deserialize_with = "crate::deserialize_finite_f64"
+        )]
         weight: f64,
     },
     /// Horizontal split (children stacked top-to-bottom).
@@ -91,7 +94,10 @@ pub enum TopologyOp {
         target: LifecycleIdentity,
         direction: TopologySplitDirection,
         /// Ratio of the new pane (0.0..1.0). 0.5 = equal split.
-        #[serde(default = "default_ratio")]
+        #[serde(
+            default = "default_ratio",
+            deserialize_with = "crate::deserialize_finite_f64"
+        )]
         ratio: f64,
     },
     /// Close/remove a pane.
@@ -249,7 +255,10 @@ pub enum TopologyError {
     /// Operation would leave a window with zero panes.
     LastPaneProtection { window: String },
     /// Ratio out of valid range.
-    InvalidRatio { ratio: f64 },
+    InvalidRatio {
+        #[serde(deserialize_with = "crate::deserialize_finite_f64")]
+        ratio: f64,
+    },
     /// Focus group name already exists.
     DuplicateFocusGroup { name: String },
 }
@@ -2326,6 +2335,28 @@ mod tests {
         let json = serde_json::to_string(&group).unwrap();
         let deserialized: FocusGroup = serde_json::from_str(&json).unwrap();
         assert_eq!(group, deserialized);
+    }
+
+    #[test]
+    fn buffered_topology_numbers_preserve_defaults_and_reject_non_numbers() {
+        assert_eq!(
+            serde_json::from_str::<LayoutNode>(r#"{"type":"Slot"}"#).unwrap(),
+            LayoutNode::Slot {
+                role: None,
+                weight: 1.0,
+            }
+        );
+        let error = TopologyError::InvalidRatio { ratio: 1.25 };
+        assert_eq!(
+            serde_json::from_str::<TopologyError>(&serde_json::to_string(&error).unwrap()).unwrap(),
+            error
+        );
+        for number in [r#""0.5""#, "null", "true", "{}", "1e400"] {
+            let json = format!(r#"{{"type":"Slot","weight":{number}}}"#);
+            assert!(serde_json::from_str::<LayoutNode>(&json).is_err());
+            let json = format!(r#"{{"code":"invalid_ratio","ratio":{number}}}"#);
+            assert!(serde_json::from_str::<TopologyError>(&json).is_err());
+        }
     }
 
     // -------------------------------------------------------------------------
