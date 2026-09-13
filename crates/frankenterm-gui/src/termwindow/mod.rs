@@ -517,6 +517,7 @@ impl UserData for TabInformation {
 /// Data used when synchronously formatting pane and window titles
 #[derive(Debug, Clone)]
 pub struct PaneInformation {
+    title_metadata_is_stale: bool,
     pub pane_id: PaneId,
     pub pane_index: usize,
     pub is_active: bool,
@@ -5377,6 +5378,12 @@ impl TermWindow {
         };
         let tabs = self.get_tab_information();
         let panes = self.get_pane_information();
+        let title_metadata_is_stale = panes.iter().any(|p| p.title_metadata_is_stale)
+            || tabs.iter().any(|t| {
+                t.active_pane
+                    .as_ref()
+                    .is_some_and(|p| p.title_metadata_is_stale)
+            });
         let active_tab = tabs.iter().find(|t| t.is_active).cloned();
         let active_pane = panes.iter().find(|p| p.is_active).cloned();
 
@@ -5498,6 +5505,11 @@ impl TermWindow {
             if show_tab_bar != self.show_tab_bar {
                 self.config_was_reloaded();
             }
+        }
+        if title_metadata_is_stale {
+            // A final OSC update may race reflow without any later output.
+            // Use the existing single-flight timer to refresh after contention.
+            self.schedule_update_title();
         }
         self.schedule_next_status_update();
     }
@@ -8121,21 +8133,23 @@ impl TermWindow {
     }
 
     fn pos_pane_to_pane_info(pos: &PositionedPane) -> PaneInformation {
+        let metadata = pos.pane.get_title_metadata();
         PaneInformation {
+            title_metadata_is_stale: metadata.is_stale,
             pane_id: pos.pane.pane_id(),
             pane_index: pos.index,
             is_active: pos.is_active,
             is_zoomed: pos.is_zoomed,
-            has_unseen_output: pos.pane.has_unseen_output(),
+            has_unseen_output: metadata.has_unseen_output,
             left: pos.left,
             top: pos.top,
             width: pos.width,
             height: pos.height,
             pixel_width: pos.pixel_width,
             pixel_height: pos.pixel_height,
-            title: pos.pane.get_title(),
-            user_vars: pos.pane.copy_user_vars(),
-            progress: pos.pane.get_progress(),
+            title: metadata.title,
+            user_vars: metadata.user_vars,
+            progress: metadata.progress,
         }
     }
 

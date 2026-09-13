@@ -7,7 +7,8 @@ use crate::guardian_protocol::GuardianCheckpointReceipt;
 use crate::pane::GuardianLiveOutputDelivery;
 use crate::pane::{
     CachePolicy, CloseReason, ForEachPaneLogicalLine, GuardianLiveCheckpointPublisher,
-    GuardianLiveOutputReader, LogicalLine, Pane, PaneId, Pattern, SearchResult, WithPaneLines,
+    GuardianLiveOutputReader, LogicalLine, Pane, PaneId, PaneTitleMetadata, Pattern, SearchResult,
+    WithPaneLines,
 };
 use crate::renderable::*;
 use crate::tmux::{TmuxDomain, TmuxDomainState};
@@ -1119,6 +1120,9 @@ pub struct LocalPane {
     durable_pane_id: [u8; 16],
     ownership: LocalPaneOwnership,
     terminal: Arc<Mutex<Terminal>>,
+    // Pane-owned lifetime prevents cached metadata crossing pane-id reuse.
+    // Only Arc swaps/clones run under this mutex, never terminal work.
+    title_metadata: Mutex<Arc<PaneTitleMetadata>>,
     cold_viewport_pending: Arc<Mutex<Option<ColdViewportPending>>>,
     cold_viewport_retry: Arc<AtomicBool>,
     cold_viewport_failure: Arc<Mutex<Option<ColdViewportFailure>>>,
@@ -1835,18 +1839,34 @@ impl Pane for LocalPane {
 
     fn get_title(&self) -> String {
         let title = self.locked_terminal().get_title().to_string();
-        // If the title is the default pane title, then try to spice
-        // things up a bit by returning the process basename instead
-        if title == "wezterm" {
-            if let Some(proc_name) = self.get_foreground_process_name(CachePolicy::AllowStale) {
-                let proc_name = std::path::Path::new(&proc_name);
-                if let Some(name) = proc_name.file_name() {
-                    return name.to_string_lossy().to_string();
-                }
-            }
-        }
+        self.resolve_pane_title(title)
+    }
 
-        title
+    fn get_title_metadata(&self) -> PaneTitleMetadata {
+        let mut is_stale = false;
+        let snapshot = if let Some(term) = self.terminal.try_lock() {
+            #[cfg(feature = "disruptor-pane-io")]
+            let term = {
+                let mut term = term;
+                self.drain_action_ring_locked(&mut term);
+                term
+            };
+            let snapshot = Arc::new(Self::capture_title_metadata(&term));
+            // Publish while still holding the terminal guard so a delayed
+            // reader cannot replace a newer capture with older metadata.
+            let retired =
+                std::mem::replace(&mut *self.title_metadata.lock(), Arc::clone(&snapshot));
+            drop(term);
+            drop(retired);
+            snapshot
+        } else {
+            is_stale = true;
+            Arc::clone(&self.title_metadata.lock())
+        };
+        let mut metadata = (*snapshot).clone();
+        metadata.is_stale = is_stale;
+        metadata.title = self.resolve_pane_title(metadata.title);
+        metadata
     }
 
     fn get_progress(&self) -> Progress {
@@ -2633,6 +2653,28 @@ fn split_child(
 }
 
 impl LocalPane {
+    fn capture_title_metadata(terminal: &Terminal) -> PaneTitleMetadata {
+        PaneTitleMetadata {
+            is_stale: false,
+            title: terminal.get_title().to_string(),
+            user_vars: terminal.user_vars().clone(),
+            progress: terminal.get_progress(),
+            has_unseen_output: terminal.has_unseen_output(),
+        }
+    }
+
+    fn resolve_pane_title(&self, title: String) -> String {
+        // Preserve the process-name fallback for the legacy default title.
+        if title == "wezterm" {
+            if let Some(proc_name) = self.get_foreground_process_name(CachePolicy::AllowStale) {
+                if let Some(name) = std::path::Path::new(&proc_name).file_name() {
+                    return name.to_string_lossy().to_string();
+                }
+            }
+        }
+        title
+    }
+
     fn refresh_line_layout_floor(&self, term: &mut Terminal) -> Option<SequenceNo> {
         let mut observation = self.line_layout_observation.try_lock()?;
         let source_changed = term.screen_mut().refresh_cold_source_observation()?;
@@ -3862,6 +3904,7 @@ impl LocalPane {
             pane_id,
             durable_pane_id,
             ownership,
+            title_metadata: Mutex::new(Arc::new(Self::capture_title_metadata(&terminal))),
             terminal: Arc::new(Mutex::new(terminal)),
             cold_viewport_pending: Arc::new(Mutex::new(None)),
             cold_viewport_retry: Arc::new(AtomicBool::new(false)),
@@ -4532,6 +4575,48 @@ mod tests {
             Box::new(GuardianLifetimeTestOutputReader),
             Arc::new(GuardianLifetimeTestCheckpointPublisher),
         )
+    }
+
+    #[test]
+    fn title_metadata_retains_coherent_state_without_waiting_for_reflow() {
+        let mut terminal = guardian_lifetime_test_terminal();
+        terminal.advance_bytes(b"\x1b]2;before\x07\x1b]9;4;1;25\x07");
+        let pane = LocalPane::new(
+            700,
+            terminal,
+            Box::new(KillCountingChild {
+                kills: Arc::new(AtomicUsize::new(0)),
+            }),
+            Box::new(GuardianLifetimeTestMasterPty),
+            Box::new(Vec::<u8>::new()),
+            1,
+            [0x70; 16],
+            "native-title-snapshot-test".to_string(),
+        );
+        let (locked_tx, locked_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        std::thread::scope(|scope| {
+            let pane_ref = &pane;
+            let holder = scope.spawn(move || {
+                let mut terminal = pane_ref.terminal.lock();
+                terminal.advance_bytes(b"\x1b]2;after\x07\x1b]9;4;1;75\x07");
+                locked_tx.send(()).unwrap();
+                // Bound a regression failure without leaving a deadlocked test.
+                release_rx.recv_timeout(Duration::from_secs(10)).is_ok()
+            });
+            locked_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+            let metadata = pane.get_title_metadata();
+            let _ = release_tx.send(());
+            assert!(holder.join().unwrap(), "title read waited for reflow");
+            assert_eq!(metadata.title, "before");
+            assert_eq!(metadata.progress, Progress::Percentage(25));
+            assert!(metadata.is_stale);
+        });
+        let metadata = pane.get_title_metadata();
+        assert_eq!(metadata.title, "after");
+        assert_eq!(metadata.progress, Progress::Percentage(75));
+        assert!(!metadata.is_stale);
+        assert!(pane.terminal.try_lock().is_some());
     }
 
     #[test]

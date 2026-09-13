@@ -573,6 +573,17 @@ pub trait GuardianLiveCheckpointPublisher: Send + Sync {
     ) -> anyhow::Result<GuardianCheckpointReceipt>;
 }
 
+/// Terminal metadata used to format titles; never a coordinate or paint authority.
+#[derive(Clone, Debug)]
+pub struct PaneTitleMetadata {
+    /// A cached capture was returned because the terminal is busy; retry later.
+    pub is_stale: bool,
+    pub title: String,
+    pub user_vars: HashMap<String, String>,
+    pub progress: Progress,
+    pub has_unseen_output: bool,
+}
+
 // `async_trait` keeps this trait object-safe by generating boxed `Future`
 // returns. The macro's own `#[must_use]` annotation duplicates the future's
 // intrinsic must-use contract under newer Clippy, so scope the compatibility
@@ -746,6 +757,17 @@ pub trait Pane: Downcast + Send + Sync {
     }
 
     fn get_title(&self) -> String;
+    /// Metadata for one synchronous title-formatting pass. Local panes capture
+    /// these fields together and retain their last capture during reflow.
+    fn get_title_metadata(&self) -> PaneTitleMetadata {
+        PaneTitleMetadata {
+            is_stale: false,
+            title: self.get_title(),
+            user_vars: self.copy_user_vars(),
+            progress: self.get_progress(),
+            has_unseen_output: self.has_unseen_output(),
+        }
+    }
     fn get_progress(&self) -> Progress {
         Progress::None
     }
