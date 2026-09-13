@@ -3877,7 +3877,11 @@ impl DirectMuxClient {
                     error = %err,
                     "mux request write failed"
                 );
-                let error = DirectMuxError::Io(err);
+                let error = if cx.is_cancel_requested() {
+                    cancelled_mux_error("request_write_in_progress", err)
+                } else {
+                    DirectMuxError::Io(err)
+                };
                 self.apply_error_disposition(&error, "request write I/O failure", true);
                 return Err(error);
             }
