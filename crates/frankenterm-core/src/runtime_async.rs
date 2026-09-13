@@ -7194,10 +7194,10 @@ async fn notify_initial_timer_registration<F: Future>(future: F) -> F::Output {
             && !registration_notified
             && asupersync::runtime::Runtime::current_handle().is_some()
         {
-            // asupersync 0.3.10 publishes timer-wheel registrations without
-            // waking a reactor leader already parked on a later deadline.
-            // The task's own scheduler waker notifies that reactor after this
-            // first poll has registered the timer. One extra poll is bounded;
+            // This notification originally covered the asupersync 0.3.10
+            // parked-reactor gap. Asupersync 0.5 also notifies registered
+            // reactors directly; retain the bounded scheduler notification
+            // for this bridge's first registration. One extra poll is bounded;
             // subsequent Pending results must not create a polling loop.
             // LabRuntime has no parked native reactor; the global fallback
             // timer already wakes its own pump when registering a deadline.
@@ -8231,8 +8231,8 @@ where
 /// follows this pattern (e.g. `MetricsServer::start_with_cx`,
 /// `start_web_server_with_cx`, `EventWaiter::wait_with_cx`).
 ///
-/// Mid-flight direct cancellation is observable only if the wrapped future is
-/// subsequently polled and checks the `Cx` itself. Neither this timeout nor
+/// Mid-flight direct cancellation can be observed when subsequently polled.
+/// Neither this timeout nor
 /// `sleep_with_cx` registers a direct-cancellation wake, so a suspended caller
 /// that requires prompt cancellation must race against an explicit
 /// cancellation signal.
@@ -9688,8 +9688,8 @@ mod tests {
                             other => Err(format!("unexpected timeout result: {other:?}")),
                         },
                         "raw" => {
-                            // This unnotified primitive is only a test negative
-                            // control, never a selectable production behavior.
+                            // Exercise the dependency's own reactor notification
+                            // without the bridge's extra scheduler wake.
                             asupersync::time::budget_sleep(
                                 &cx,
                                 Duration::from_millis(20),
