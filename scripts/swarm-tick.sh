@@ -232,15 +232,15 @@ emit_agent_mail_fallback_snapshot() {
   dirty_json=$(git_dirty_paths_json)
   agent_mail_json=$(agent_mail_failover_classify_json "${FT_AGENT_MAIL_FAILURE_CLASS:-api_unreachable}")
 
-  jq -cn \
+  printf '%s\n' "$in_progress_json" "$ready_json" "$dirty_json" | jq -cn \
     --arg ts "$now" \
     --arg session "$session" \
     --argjson now_epoch "$now_epoch" \
-    --argjson in_progress "$in_progress_json" \
-    --argjson ready "$ready_json" \
-    --argjson dirty "$dirty_json" \
     --argjson agent_mail "$agent_mail_json" \
     '
+      input as $in_progress |
+      input as $ready |
+      input as $dirty |
     def parse_bead_ts:
       if . == null then
         null
