@@ -131,19 +131,19 @@
       "classification_summary": {
         "docs": 1,
         "feat": 2,
-        "fix": 3,
+        "fix": 4,
         "other": 2,
         "refactor": 2,
         "rename": 1,
         "test": 6
       },
-      "fork_side_commit_count": 17,
+      "fork_side_commit_count": 18,
       "last_modified": {
-        "author": "dependabot[bot]",
-        "classification": "other",
-        "committed_at": "2026-09-11T03:30:59Z",
-        "sha": "d814c9874d732cf0091eb706abcc2c083a3ad2c8",
-        "subject": "deps: bump the rust-deps group across 1 directory with 27 updates"
+        "author": "Jeff Emanuel",
+        "classification": "fix",
+        "committed_at": "2026-09-13T02:51:32-04:00",
+        "sha": "53c1375f44b9a8747803b12221667a50105e0c94",
+        "subject": "fix(runtime): isolate explicit timers from ambient cancellation"
       },
       "name": "frankenterm-char-props",
       "path": "frankenterm/char-props",
@@ -1064,8 +1064,8 @@
     "subject": "Import WezTerm source at 05343b38 as FrankenTerm owned code"
   },
   "fork_repo": "frankenterm",
-  "fork_side_commit_total": 2516,
-  "generated_at": "2026-09-13T05:20:30.980406Z",
+  "fork_side_commit_total": 2517,
+  "generated_at": "2026-09-13T08:07:30.843911Z",
   "produced_by": "scripts/regen-provenance.py",
   "schema_version": "1",
   "vendored_crate_count": 47,
