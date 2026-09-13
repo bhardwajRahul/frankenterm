@@ -8287,6 +8287,10 @@ where
 }
 
 pub(crate) fn timer_now_with_cx(cx: &crate::cx::Cx) -> asupersync::Time {
+    // wall_now itself consults the ambient timer driver. Keep its clock in
+    // the same context as the subsequent timer polls, including driverless
+    // cleanup contexts entered from a task with a virtual clock.
+    let _guard = crate::cx::Cx::set_current(Some(cx.clone()));
     cx.timer_driver()
         .map_or_else(asupersync::time::wall_now, |driver| driver.now())
 }

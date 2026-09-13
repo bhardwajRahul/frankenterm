@@ -462,7 +462,10 @@ pub enum TranslatedLayoutNode {
     Slot {
         #[serde(default)]
         role: Option<String>,
-        #[serde(default = "default_one")]
+        #[serde(
+            default = "default_one",
+            deserialize_with = "crate::deserialize_finite_f64"
+        )]
         weight: f64,
     },
     HSplit {
@@ -1945,9 +1948,28 @@ mod tests {
         );
         let json = serde_json::to_string(&bundle).unwrap();
         let back: NtmImportBundle = serde_json::from_str(&json).unwrap();
-        assert_eq!(bundle.report.total_items, back.report.total_items);
-        assert_eq!(bundle.session_profiles.len(), back.session_profiles.len());
-        assert_eq!(bundle.workflows.len(), back.workflows.len());
+        assert_eq!(bundle, back);
+    }
+
+    #[test]
+    fn layout_weight_deserialization_preserves_numbers_and_defaults() {
+        for (json, expected) in [
+            (r#"{"type":"slot","weight":0.25}"#, 0.25),
+            (r#"{"weight":2,"type":"slot"}"#, 2.0),
+            (r#"{"type":"slot"}"#, 1.0),
+        ] {
+            assert_eq!(
+                serde_json::from_str::<TranslatedLayoutNode>(json).unwrap(),
+                TranslatedLayoutNode::Slot {
+                    role: None,
+                    weight: expected,
+                }
+            );
+        }
+        for weight in [r#""0.25""#, "null", "true", "{}", "1e400"] {
+            let json = format!(r#"{{"type":"slot","weight":{weight}}}"#);
+            assert!(serde_json::from_str::<TranslatedLayoutNode>(&json).is_err());
+        }
     }
 
     // -------------------------------------------------------------------------

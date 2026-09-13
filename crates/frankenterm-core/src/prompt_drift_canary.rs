@@ -109,12 +109,14 @@ pub enum DriftAlert {
     /// The monitored statistic drifted upward beyond the
     /// alarm threshold.
     UpwardShift {
+        #[serde(deserialize_with = "crate::deserialize_finite_f64")]
         cusum_at_alarm: f64,
         observations_count: u64,
     },
     /// The monitored statistic drifted downward beyond the
     /// alarm threshold.
     DownwardShift {
+        #[serde(deserialize_with = "crate::deserialize_finite_f64")]
         cusum_at_alarm: f64,
         observations_count: u64,
     },
@@ -867,6 +869,28 @@ mod tests {
         let json = serde_json::to_string(&down).expect("serialize");
         let back: DriftAlert = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(down, back);
+    }
+
+    #[test]
+    fn drift_alert_deserialization_accepts_numeric_fields_before_tag() {
+        for (number, expected) in [("5.5", 5.5), ("7", 7.0)] {
+            let json = format!(
+                r#"{{"cusum_at_alarm":{number},"observations_count":42,"kind":"upward_shift"}}"#
+            );
+            assert_eq!(
+                serde_json::from_str::<DriftAlert>(&json).unwrap(),
+                DriftAlert::UpwardShift {
+                    cusum_at_alarm: expected,
+                    observations_count: 42,
+                }
+            );
+        }
+        for number in [r#""5.5""#, "null", "true", "{}", "1e400"] {
+            let json = format!(
+                r#"{{"kind":"upward_shift","cusum_at_alarm":{number},"observations_count":42}}"#
+            );
+            assert!(serde_json::from_str::<DriftAlert>(&json).is_err());
+        }
     }
 
     /// FixtureCandidate serde roundtrips.

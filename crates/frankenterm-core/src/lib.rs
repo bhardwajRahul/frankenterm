@@ -54,6 +54,18 @@
 // this crate forbids.
 #![cfg_attr(windows, feature(windows_by_handle))]
 
+/// Decode finite numeric fields even when Serde's tagged/untagged enum
+/// buffering receives serde_json's arbitrary-precision number representation.
+pub(crate) fn deserialize_finite_f64<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<f64, D::Error> {
+    let number = <serde_json::Number as serde::Deserialize>::deserialize(deserializer)?;
+    number
+        .as_f64()
+        .filter(|value| value.is_finite())
+        .ok_or_else(|| serde::de::Error::custom("expected a finite f64"))
+}
+
 /// Explicit checked-CAS update shared by counters with fail-closed semantics.
 ///
 /// The workspace now admits `AtomicU64::try_update`, but this helper retains

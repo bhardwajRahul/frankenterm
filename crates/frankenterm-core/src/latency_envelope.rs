@@ -80,7 +80,10 @@ impl<'de> Deserialize<'de> for LatencyEnvelopeConfig {
             Object {
                 #[serde(default)]
                 enabled: bool,
-                #[serde(default = "default_violation_epsilon_ms")]
+                #[serde(
+                    default = "default_violation_epsilon_ms",
+                    deserialize_with = "crate::deserialize_finite_f64"
+                )]
                 violation_epsilon_ms: f64,
             },
         }
@@ -565,6 +568,17 @@ mod tests {
             serde_json::from_str(r#"{"enabled":true,"violation_epsilon_ms":0.25}"#).unwrap();
         assert!(parsed_object.enabled);
         assert!(approx(parsed_object.violation_epsilon_ms, 0.25));
+
+        let roundtrip: LatencyEnvelopeConfig =
+            serde_json::from_str(&serde_json::to_string(&parsed_object).unwrap()).unwrap();
+        assert_eq!(roundtrip, parsed_object);
+        let default_object: LatencyEnvelopeConfig = serde_json::from_str("{}").unwrap();
+        assert_eq!(default_object, config);
+
+        for epsilon in [r#""0.25""#, "null", "true", "{}", "1e400"] {
+            let json = format!(r#"{{"enabled":true,"violation_epsilon_ms":{epsilon}}}"#);
+            assert!(serde_json::from_str::<LatencyEnvelopeConfig>(&json).is_err());
+        }
     }
 
     #[test]
