@@ -1526,7 +1526,7 @@ mod tests {
             r#"{"mcpServers":{"shared":{"command":"last","disabled":true},"added":{"command":"new"}}}"#,
         )
         .expect("later valid source");
-        let paths = vec![first, malformed, missing, last];
+        let paths = [first, malformed, missing, last];
         let settings = McpClientConfig {
             include_default_paths: false,
             discovery_paths: paths

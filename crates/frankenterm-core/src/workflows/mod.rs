@@ -7159,7 +7159,7 @@ steps:
                     "explicit abort must not execute workflow steps"
                 );
                 let count: i64 = conn.query_row("SELECT COUNT(*) FROM audit_actions WHERE action_kind = 'workflow_aborted' AND actor_id = ?1", [execution], |row| row.get(0)).unwrap();
-                assert_eq!(count, if fail_audit { 0 } else { 1 });
+                assert_eq!(count, i64::from(!fail_audit));
                 let repeated = runner.abort_execution(execution, None, false).await;
                 if fail_audit {
                     assert!(repeated.is_err());

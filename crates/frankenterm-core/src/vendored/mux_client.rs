@@ -9111,7 +9111,7 @@ mod tests {
                                             }
                                             "wrong-request" => {
                                                 rejection.request_ident =
-                                                    <ListPanes as PduWireIdent>::IDENT
+                                                    <ListPanes as PduWireIdent>::IDENT;
                                             }
                                             "eof" => return requests,
                                             "cancel" | "extreme-cancel" => {

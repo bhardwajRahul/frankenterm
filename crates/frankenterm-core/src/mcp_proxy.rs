@@ -1081,7 +1081,7 @@ mod tests {
             .expect("proxy composition test runtime");
         runtime.block_on(async {
             let cx = crate::cx::Cx::current().expect("runtime-owned proxy test context");
-            super::compose_proxy_tools(&cx, builder, config, db_path).await
+            Box::pin(super::compose_proxy_tools(&cx, builder, config, db_path)).await
         })
     }
 
@@ -1172,12 +1172,12 @@ for raw in sys.stdin:
                 );
                 reached_catalog
             });
-            let result = super::compose_proxy_tools(
+            let result = Box::pin(super::compose_proxy_tools(
                 &cx,
                 crate::mcp_framework::framework_server_builder("cancellation-test", "1"),
                 &config,
                 Some(std::sync::Arc::new(temp.path().join("audit.db"))),
-            )
+            ))
             .await;
             assert!(
                 cancel.join().expect("cancellation thread"),
