@@ -102,6 +102,7 @@ pub struct DetectionNotice {
     pub agent_type: AgentType,
     pub event_type: String,
     pub severity: Severity,
+    #[serde(deserialize_with = "crate::deserialize_finite_f64")]
     pub confidence: f64,
     pub extracted: serde_json::Value,
     pub matched_text: String,
@@ -1092,10 +1093,14 @@ mod tests {
 
     #[test]
     fn roundtrip_detection() {
-        let envelope = WireEnvelope::new(4, "agent-1", WirePayload::Detection(sample_detection()));
-        let bytes = envelope.to_json().unwrap();
-        let decoded = WireEnvelope::from_json(&bytes).unwrap();
-        assert_eq!(envelope.payload, decoded.payload);
+        for confidence in [0.0, 0.125, 1.0] {
+            let mut detection = sample_detection();
+            detection.confidence = confidence;
+            let envelope = WireEnvelope::new(4, "agent-1", WirePayload::Detection(detection));
+            let bytes = envelope.to_json().unwrap();
+            let decoded = WireEnvelope::from_json(&bytes).unwrap();
+            assert_eq!(envelope, decoded);
+        }
     }
 
     #[test]
@@ -1360,6 +1365,7 @@ mod tests {
                 assert_eq!(d.rule_id, "codex.usage.reached");
                 assert_eq!(d.agent_type, AgentType::Codex);
                 assert_eq!(d.severity, Severity::Critical);
+                assert_eq!(d.confidence, 1.0);
                 assert_eq!(d.extracted["reset_time"], "2:30 PM");
             }
             other => panic!("expected Detection, got: {other:?}"),
