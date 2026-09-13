@@ -5324,7 +5324,7 @@ impl Screen {
         cursor: CursorPosition,
         seqno: SequenceNo,
         is_conpty: bool,
-        prepared: Option<&mut ScreenReflowPreparation>,
+        mut prepared: Option<&mut ScreenReflowPreparation>,
     ) -> CursorPosition {
         // A resize may return early or reuse cached wraps without recording a
         // fresh viewport batch. Never attribute an earlier resize's work to it.
@@ -5344,18 +5344,43 @@ impl Screen {
         );
         self.invalidate_coordinate_witnesses();
         self.retain_last_good_frame(seqno, LastGoodFrameTransition::ResizeBegin);
-        let prepared =
-            prepared.filter(|prepared| self.matches_reflow_preparation(prepared, size, cursor));
+        let prepared_matches = prepared
+            .as_ref()
+            .is_some_and(|prepared| self.matches_reflow_preparation(prepared, size, cursor));
         let dpi_changed = self.dpi != size.dpi;
         self.dpi = size.dpi;
         if dpi_changed {
-            if prepared.is_none() {
+            if !prepared_matches {
                 if let Some(cache) = self.rewrap_cache.as_mut() {
                     Arc::make_mut(cache).clear_wraps();
                 }
             }
             self.clear_rewrap_line_cache();
         }
+
+        if let Some(candidate) = prepared.as_deref_mut() {
+            if candidate.ready
+                && candidate.target == size
+                && candidate.snapshot.resize_wrap_policy == self.resize_wrap_policy
+                && !candidate.snapshot.rewrap_line_cache.is_empty()
+            {
+                // Output may invalidate the complete prepared layout while
+                // leaving most logical lines unchanged. Retain its bounded,
+                // content-keyed wraps: each live line still passes the normal
+                // width/DPI/policy/shape lookup before reuse. Never install a
+                // stale layout or cursor. Swap so displaced buffers retire on
+                // the preparation's worker after terminal locks are released.
+                std::mem::swap(
+                    &mut self.rewrap_line_cache,
+                    &mut candidate.snapshot.rewrap_line_cache,
+                );
+                std::mem::swap(
+                    &mut self.rewrap_line_cache_order,
+                    &mut candidate.snapshot.rewrap_line_cache_order,
+                );
+            }
+        }
+        let prepared = prepared.filter(|_| prepared_matches);
 
         // pre-prune blank lines that range from the cursor position to the end of the display;
         // this avoids growing the scrollback size when rapidly switching between normal and
@@ -8894,6 +8919,46 @@ pub(crate) mod tests {
             assert_eq!(actual, expected, "mutation {mutation}");
             assert_eq!(screen.lines, synchronous.lines, "mutation {mutation}");
         }
+    }
+
+    #[test]
+    fn stale_preparation_reuses_unchanged_line_wraps_without_installing_layout() {
+        let mut screen = test_screen(3, 80, 96);
+        let attrs = CellAttributes::blank();
+        screen.lines = (0..64)
+            .map(|index| {
+                Line::from_text(
+                    &format!("{index:04} abc界e\u{301}defghijklmnop"),
+                    &attrs,
+                    1,
+                    None,
+                )
+            })
+            .collect();
+        let cursor = test_cursor(0, 2, 1);
+        let size = test_size(3, 8, 96);
+        let mut prepared = screen.capture_reflow_preparation(size, cursor).unwrap();
+        assert!(prepared.prepare(|| false));
+        // Same-seqno mutation deliberately rules out seqno-only validation.
+        screen
+            .lines
+            .back_mut()
+            .unwrap()
+            .set_cell(0, Cell::new('Z', attrs), 1);
+        assert!(!screen.matches_reflow_preparation(&prepared, size, cursor));
+        let mut synchronous = screen.clone();
+        let expected = synchronous.resize(size, cursor, 2, false);
+        let actual =
+            screen.resize_with_prepared_reflow(size, cursor, 2, false, Some(&mut prepared));
+        assert!(!prepared.was_applied(), "stale layout must remain rejected");
+        assert_eq!(actual, expected);
+        assert_eq!(screen.lines, synchronous.lines);
+        assert_eq!(
+            screen.last_resize_wrap_scorecard,
+            synchronous.last_resize_wrap_scorecard
+        );
+        assert_eq!(synchronous.rewrap_line_cache_hits, 0);
+        assert_eq!(screen.rewrap_line_cache_hits, 63);
     }
 
     #[test]
