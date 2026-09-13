@@ -5266,7 +5266,7 @@ mod tests {
     use proptest::prelude::*;
     use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     const COMPRESSED_MASK: u64 = 1 << 63;
     // Stay below the default 4 MiB frame limit while exceeding ordinary Unix
