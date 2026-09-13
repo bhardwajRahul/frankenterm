@@ -7157,12 +7157,13 @@ pub async fn sleep(duration: Duration) {
 ///
 /// # Cancellation semantics (ft-xbnl0.2.4 tick 331)
 ///
-/// Mirrors [`timeout_with_cx`]: this function observes the cx **budget
+/// This function observes the cx **budget
 /// deadline** (via [`asupersync::time::budget_sleep`], which caps the
 /// effective sleep duration by remaining budget), but does **not**
-/// directly check `cx.is_cancel_requested()`. A pre-cancelled cx with
-/// an infinite budget will still sleep for the full requested
-/// `duration` before returning `Ok`.
+/// directly report cancellation as an error. The underlying timer can
+/// complete early when the supplied context is cancelled; callers must
+/// check that context to distinguish cancellation from elapsed time.
+/// Cancellation of an unrelated ambient context cannot complete this sleep.
 ///
 /// Callers who need a sleep that short-circuits on cancel MUST add an
 /// explicit `cx.checkpoint()?` (or equivalent `if cx.is_cancel_requested()`
@@ -7171,11 +7172,15 @@ pub async fn sleep(duration: Duration) {
 /// Every cx-first accept/poll loop in this crate that uses `sleep_with_cx`
 /// already follows this pattern (e.g. watchdog.rs, backpressure polling).
 pub async fn sleep_with_cx(cx: &crate::cx::Cx, duration: Duration) -> Result<(), String> {
-    notify_initial_timer_registration(asupersync::time::budget_sleep(
-        cx,
-        duration,
-        cx_timer_now(cx),
-    ))
+    let timer = asupersync::time::budget_sleep(cx, duration, cx_timer_now(cx));
+    let mut timer = std::pin::pin!(timer);
+    notify_initial_timer_registration(std::future::poll_fn(|task_cx| {
+        // Sleep consults the current context for both cancellation and its
+        // timer driver. Scope each poll, never an await: a cancelled caller
+        // must not short-circuit an independent cleanup context's timer.
+        let _guard = crate::cx::Cx::set_current(Some(cx.clone()));
+        timer.as_mut().poll(task_cx)
+    }))
     .await
     .map_err(|err| err.to_string())
 }
@@ -8211,9 +8216,10 @@ where
 /// This function observes the cx **budget deadline** (via
 /// [`asupersync::time::budget_timeout`], which bounds the effective
 /// timeout by the remaining budget), but does **not** directly check
-/// `cx.is_cancel_requested()`. A pre-cancelled cx with an infinite
-/// budget will still wait up to the full requested `duration` before
-/// returning `Err`.
+/// `cx.is_cancel_requested()`. The underlying timer can return early on
+/// cancellation of the supplied context. An unrelated ambient context
+/// cannot terminate this timeout. Each poll of the wrapped future runs
+/// under the supplied context as well.
 ///
 /// Callers who need pre-cancellation short-circuit MUST add an explicit
 /// `cx.checkpoint()?` (or equivalent `if cx.is_cancel_requested()` bail)
@@ -8270,12 +8276,12 @@ where
         return Err(TimeoutError::Elapsed);
     }
 
-    notify_initial_timer_registration(asupersync::time::budget_timeout(
-        cx,
-        duration,
-        Box::pin(future),
-        started_at,
-    ))
+    let timeout = asupersync::time::budget_timeout(cx, duration, Box::pin(future), started_at);
+    let mut timeout = std::pin::pin!(timeout);
+    notify_initial_timer_registration(std::future::poll_fn(|task_cx| {
+        let _guard = crate::cx::Cx::set_current(Some(cx.clone()));
+        timeout.as_mut().poll(task_cx)
+    }))
     .await
     .map_err(|_elapsed| TimeoutError::Elapsed)
 }
@@ -15617,6 +15623,57 @@ mod tests {
 
             assert_eq!(error, TimeoutError::Elapsed);
         });
+    }
+
+    #[test]
+    fn timeout_with_cx_ignores_unrelated_ambient_cancellation() {
+        let explicit = crate::cx::for_request();
+        let ambient = crate::cx::for_request();
+        ambient.cancel_with(crate::outcome::CancelKind::Shutdown, None);
+        let _ambient_guard = crate::cx::Cx::set_current(Some(ambient.clone()));
+        let mut timeout = std::pin::pin!(timeout_with_cx_typed(
+            &explicit,
+            Duration::from_secs(60),
+            std::future::pending::<()>()
+        ));
+        let waker = futures::task::noop_waker();
+        let mut task_cx = std::task::Context::from_waker(&waker);
+
+        assert!(timeout.as_mut().poll(&mut task_cx).is_pending());
+        assert!(timeout.as_mut().poll(&mut task_cx).is_pending());
+        let restored = crate::cx::Cx::current().expect("ambient context restored after poll");
+        assert_eq!(restored.task_id(), ambient.task_id());
+        assert!(restored.is_cancel_requested());
+        explicit.cancel_with(crate::outcome::CancelKind::Shutdown, None);
+        assert!(matches!(
+            timeout.as_mut().poll(&mut task_cx),
+            std::task::Poll::Ready(Err(TimeoutError::Elapsed))
+        ));
+    }
+
+    #[test]
+    fn sleep_with_cx_ignores_unrelated_ambient_cancellation() {
+        let explicit = crate::cx::for_request();
+        let ambient = crate::cx::for_request();
+        ambient.cancel_with(crate::outcome::CancelKind::Shutdown, None);
+        let _ambient_guard = crate::cx::Cx::set_current(Some(ambient.clone()));
+        let mut timer = std::pin::pin!(sleep_with_cx(&explicit, Duration::from_secs(60)));
+        let waker = futures::task::noop_waker();
+        let mut task_cx = std::task::Context::from_waker(&waker);
+
+        // No wall-clock wait: the old implementation returns Ready here and
+        // makes cleanup polling loops spin without ever yielding.
+        assert!(timer.as_mut().poll(&mut task_cx).is_pending());
+        assert!(timer.as_mut().poll(&mut task_cx).is_pending());
+        let restored = crate::cx::Cx::current().expect("ambient context restored after poll");
+        assert_eq!(restored.task_id(), ambient.task_id());
+        assert!(restored.is_cancel_requested());
+
+        explicit.cancel_with(crate::outcome::CancelKind::Shutdown, None);
+        assert!(matches!(
+            timer.as_mut().poll(&mut task_cx),
+            std::task::Poll::Ready(Ok(()))
+        ));
     }
 
     /// ft-xbnl0.2.4 tick 382: `sleep_with_cx` observes cx budget deadline.

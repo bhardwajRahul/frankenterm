@@ -37243,7 +37243,7 @@ mod watch_events_tests {
             .local_addr()
             .expect("read isolated completion channel address");
         let executable = std::env::current_exe().expect("resolve current test executable");
-        let child = std::process::Command::new(executable)
+        let mut child = std::process::Command::new(executable)
             .arg("claimed_output_undrained_pipe_subprocess_is_cancellation_bounded")
             .arg("--test-threads=1")
             .arg("--nocapture")
@@ -37269,6 +37269,11 @@ mod watch_events_tests {
             }
         };
         let settled_before_drain = marker_connection.is_some();
+        if !settled_before_drain {
+            child
+                .kill()
+                .expect("terminate stalled claimed-output subprocess");
+        }
         let output = child
             .wait_with_output()
             .expect("drain and join isolated claimed-output subprocess");
@@ -41448,9 +41453,9 @@ async fn run_robot_rpc_command(
             let cancelled = CommandCancelled::from_io_error(&error).is_some();
             let timed_out = CommandTimedOut::from_io_error(&error).is_some();
             let capped = CommandOutputLimitExceeded::from_io_error(&error).is_some();
-            let incomplete = CommandProcessCleanupIncomplete::from_io_error(&error).is_some()
-                || CommandOutputCaptureIncomplete::from_io_error(&error).is_some()
-                || !report.supervisor_settled;
+            let cleanup = CommandProcessCleanupIncomplete::from_io_error(&error);
+            let capture = CommandOutputCaptureIncomplete::from_io_error(&error);
+            let incomplete = cleanup.is_some() || capture.is_some() || !report.supervisor_settled;
             if receipt.admission == IpcRpcAdmission::Started
                 && !incomplete
                 && (cancelled || timed_out || capped)
@@ -41470,6 +41475,25 @@ async fn run_robot_rpc_command(
             } else {
                 "ipc.rpc_process_failed"
             };
+            if incomplete {
+                tracing::warn!(
+                    event = "ipc_rpc_settlement_unconfirmed",
+                    error_code = code,
+                    supervisor_settled = report.supervisor_settled,
+                    spawned = report.spawned_pid.is_some(),
+                    cleanup_trigger = ?cleanup.map(CommandProcessCleanupIncomplete::trigger),
+                    leader_reaped = ?cleanup.map(CommandProcessCleanupIncomplete::leader_reaped),
+                    signal_helper_settled = ?cleanup.map(CommandProcessCleanupIncomplete::signal_helper_settled),
+                    process_tree_signalled = ?cleanup.map(CommandProcessCleanupIncomplete::process_tree_signalled),
+                    cleanup_stdout_open = ?cleanup.map(CommandProcessCleanupIncomplete::stdout_open),
+                    cleanup_stderr_open = ?cleanup.map(CommandProcessCleanupIncomplete::stderr_open),
+                    settle_timeout_ms = ?cleanup.map(CommandProcessCleanupIncomplete::settle_timeout_ms),
+                    capture_stdout_open = ?capture.map(CommandOutputCaptureIncomplete::stdout_open),
+                    capture_stderr_open = ?capture.map(CommandOutputCaptureIncomplete::stderr_open),
+                    drain_timeout_ms = ?capture.map(CommandOutputCaptureIncomplete::drain_timeout_ms),
+                    "IPC child cleanup did not establish complete settlement"
+                );
+            }
             ipc_rpc_failure(code)
         }
     }
@@ -124362,6 +124386,8 @@ printf x > "$MINISIGN_MARKER"
     #[cfg(unix)]
     #[test]
     fn ipc_rpc_barriers_cancel_or_expire_before_and_after_effect_without_rollback_claims() {
+        let _trace =
+            tracing::subscriber::set_default(tracing_subscriber::fmt().with_test_writer().finish());
         run_async_test(async {
             use frankenterm_core::ipc::*;
             for (after_effect, deadline) in [(false, false), (true, false), (false, true)] {
@@ -124426,7 +124452,8 @@ printf x > "$MINISIGN_MARKER"
                             "ipc.rpc_deadline_exceeded"
                         } else {
                             "ipc.rpc_cancelled"
-                        })
+                        }),
+                        "after_effect={after_effect}, deadline={deadline}, iteration={iteration}, receipt={receipt:?}"
                     );
                     assert_eq!(receipt.settlement, IpcRpcSettlement::Terminated);
                     assert_eq!(receipt.effects, IpcRpcEffects::Indeterminate);

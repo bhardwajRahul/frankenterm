@@ -133,6 +133,11 @@ mod tests {
                 Some(expected),
                 "generated PHF entry for {grapheme:?} is unreachable"
             );
+            assert_eq!(
+                Presentation::for_grapheme(grapheme),
+                (expected.0, Some(expected.1)),
+                "generated presentation for {grapheme:?} is not honored"
+            );
         }
     }
 
