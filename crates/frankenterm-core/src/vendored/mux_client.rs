@@ -12837,8 +12837,8 @@ mod tests {
             let temp_dir = tempfile::tempdir().expect("tempdir");
             let socket_path = temp_dir.path().join("read-cancel-with-cx.sock");
             let server_socket_path = socket_path.clone();
+            let server_cancel_cx = cx.clone();
             let (server_ready_tx, server_ready_rx) = std::sync::mpsc::channel();
-            let (request_seen_tx, request_seen_rx) = std::sync::mpsc::channel();
             let server = std::thread::spawn(move || {
                 let runtime = RuntimeBuilder::current_thread()
                     .build()
@@ -12881,7 +12881,10 @@ mod tests {
                                         .expect("write client response");
                                 }
                                 Pdu::ListPanes(_) => {
-                                    request_seen_tx.send(()).expect("signal list panes request");
+                                    server_cancel_cx.cancel_with(
+                                        crate::outcome::CancelKind::User,
+                                        Some("cancel after server observed list panes request"),
+                                    );
                                     sleep(Duration::from_millis(250)).await;
                                     return;
                                 }
@@ -12896,34 +12899,26 @@ mod tests {
                 .recv_timeout(Duration::from_secs(2))
                 .expect("server should be ready before client connects");
 
-            let config =
-                direct_mux_client_config_with_timeout(socket_path, Duration::from_millis(40));
+            // This tests cancellation after request admission, not a short
+            // handshake deadline. Keep setup bounded without racing scheduling.
+            let config = direct_mux_client_config_with_timeout(socket_path, Duration::from_secs(2));
             let mut client = DirectMuxClient::connect_with_cx(&cx, config)
                 .await
                 .expect("connect with cx");
-
-            let cancel_cx = cx.clone();
-            let cancel = std::thread::spawn(move || {
-                request_seen_rx
-                    .recv_timeout(Duration::from_secs(2))
-                    .expect("server should observe list panes request");
-                std::thread::sleep(Duration::from_millis(5));
-                cancel_cx.cancel_with(
-                    crate::outcome::CancelKind::User,
-                    Some("cancel during response read"),
-                );
-            });
 
             let err = client
                 .list_panes_with_cx(&cx)
                 .await
                 .expect_err("list_panes_with_cx should surface cancellation");
             assert_cancelled_mux_error(&err);
+            assert!(
+                !err.is_pre_transport_cancellation(),
+                "server-observed request must retain transport-ambiguous cancellation"
+            );
             assert!(client.connection_poisoned);
             assert_eq!(client.poison_transition_count, 1);
 
             drop(client);
-            cancel.join().expect("cancel thread");
             server.join().expect("server thread should exit cleanly");
         });
     }
