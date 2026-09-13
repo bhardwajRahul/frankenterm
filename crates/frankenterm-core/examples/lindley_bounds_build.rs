@@ -227,8 +227,8 @@ mod live_measurement {
     #[cfg(all(unix, feature = "vendored"))]
     mod measured {
         use super::super::{
-            Digest, JSON_BEGIN, JSON_END, LindleyBoundsArtifact, LindleyTelemetryModel, Read,
-            Serialize, Sha256, fs, optional_env, pipeline_delay_bound,
+            Digest, JSON_BEGIN, JSON_END, LindleyBoundsArtifact, LindleyTelemetryModel, Serialize,
+            Sha256, fs, optional_env, pipeline_delay_bound,
         };
         use frankenterm_core::cx::Cx;
         use frankenterm_core::ingest::{CapturedSegmentKind, PaneCursor};

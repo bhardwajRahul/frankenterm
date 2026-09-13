@@ -611,10 +611,11 @@ fn capture_tool_contract(
         let input_schema = tool_input_schema(&mut json_harness.client, tool_name);
         assert_schema_matches_manifest(tool_name, &input_schema);
         let before = fs::read(tx_file_path(json_harness.workspace.path())).unwrap();
+        let arguments = args(&json_harness, "json");
         let json_envelope = parse_tool_envelope(
             &json_harness
                 .client
-                .call_tool(tool_name, args(&json_harness, "json"))
+                .call_tool(tool_name, arguments)
                 .unwrap_or_else(|err| panic!("call {tool_name} json case: {err}")),
             "json",
         );
@@ -632,10 +633,11 @@ fn capture_tool_contract(
         let mut toon_harness = new_harness();
         setup(&mut toon_harness);
         let before = fs::read(tx_file_path(toon_harness.workspace.path())).unwrap();
+        let arguments = args(&toon_harness, "toon");
         let envelope = parse_tool_envelope(
             &toon_harness
                 .client
-                .call_tool(tool_name, args(&toon_harness, "toon"))
+                .call_tool(tool_name, arguments)
                 .unwrap_or_else(|err| panic!("call {tool_name} toon case: {err}")),
             "toon",
         );
@@ -658,9 +660,10 @@ fn capture_tool_contract(
     let boundary_invalid_params_error = {
         let mut boundary_harness = new_harness();
         boundary_setup(&mut boundary_harness);
+        let arguments = boundary_args(&boundary_harness);
         boundary_harness
             .client
-            .call_tool(tool_name, boundary_args(&boundary_harness))
+            .call_tool(tool_name, arguments)
             .err()
             .map(|err| err.to_string())
             .unwrap_or_else(|| panic!("expected {tool_name} boundary-invalid case to fail"))

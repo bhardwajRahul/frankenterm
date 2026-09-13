@@ -692,10 +692,11 @@ fn capture_tool_contract(
         let before: Mission = serde_json::from_slice(&fs::read(&mission_path).unwrap()).unwrap();
         let input_schema = tool_input_schema(&mut json_harness.client, tool_name);
         assert_schema_matches_manifest(tool_name, &input_schema);
+        let arguments = success_args(&json_harness, "json");
         let json_success_envelope = parse_tool_envelope(
             &json_harness
                 .client
-                .call_tool(tool_name, success_args(&json_harness, "json"))
+                .call_tool(tool_name, arguments)
                 .unwrap_or_else(|err| panic!("call {tool_name} json success case: {err}")),
             "json",
         );
@@ -708,10 +709,11 @@ fn capture_tool_contract(
         success_setup(&mut toon_harness);
         let mission_path = mission_file_path(&toon_harness.workspace);
         let before: Mission = serde_json::from_slice(&fs::read(&mission_path).unwrap()).unwrap();
+        let arguments = success_args(&toon_harness, "toon");
         let envelope = parse_tool_envelope(
             &toon_harness
                 .client
-                .call_tool(tool_name, success_args(&toon_harness, "toon"))
+                .call_tool(tool_name, arguments)
                 .unwrap_or_else(|err| panic!("call {tool_name} toon success case: {err}")),
             "toon",
         );
@@ -730,9 +732,10 @@ fn capture_tool_contract(
     let boundary_invalid_params_error = {
         let mut boundary_harness = new_harness();
         boundary_setup(&mut boundary_harness);
+        let arguments = boundary_args(&boundary_harness);
         boundary_harness
             .client
-            .call_tool(tool_name, boundary_args(&boundary_harness))
+            .call_tool(tool_name, arguments)
             .err()
             .map(|err| err.to_string())
             .unwrap_or_else(|| panic!("expected {tool_name} boundary-invalid case to fail"))
