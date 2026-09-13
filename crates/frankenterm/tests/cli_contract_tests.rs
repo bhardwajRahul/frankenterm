@@ -19,6 +19,7 @@ mod mcp_runtime_migration {
     use frankenterm_core::cx::{CapSet, CapSetRuntimeMask, Cx};
     use frankenterm_core::mcp_client::{ExternalServerConfig, FtMcpClient};
     use frankenterm_core::runtime_async::{CompatRuntime, RuntimeBuilder, yield_now};
+    use std::os::unix::fs::OpenOptionsExt as _;
 
     #[test]
     fn real_stdio_client_restores_caller_and_reaps_server() {
@@ -72,7 +73,6 @@ mod mcp_runtime_migration {
 
     fn run_real_stdio_client_case(restricted: bool, workspace: std::path::PathBuf) {
         use std::io::Write as _;
-        use std::os::unix::fs::OpenOptionsExt as _;
 
         let config_path = workspace.join("ft.toml");
         let upstream_config_path = workspace.join("upstream.json");

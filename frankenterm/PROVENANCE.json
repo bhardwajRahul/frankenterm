@@ -132,18 +132,18 @@
         "docs": 1,
         "feat": 2,
         "fix": 3,
-        "other": 1,
+        "other": 2,
         "refactor": 2,
         "rename": 1,
         "test": 6
       },
-      "fork_side_commit_count": 16,
+      "fork_side_commit_count": 17,
       "last_modified": {
-        "author": "Jeff Emanuel",
-        "classification": "fix",
-        "committed_at": "2026-09-04T06:21:46-04:00",
-        "sha": "15ed015f97f46c905ffbe3cb29c7fcc1e761f06e",
-        "subject": "fix(char-props): restore generated PHF compatibility"
+        "author": "dependabot[bot]",
+        "classification": "other",
+        "committed_at": "2026-09-11T03:30:59Z",
+        "sha": "d814c9874d732cf0091eb706abcc2c083a3ad2c8",
+        "subject": "deps: bump the rust-deps group across 1 directory with 27 updates"
       },
       "name": "frankenterm-char-props",
       "path": "frankenterm/char-props",
@@ -155,8 +155,8 @@
         "chore": 2,
         "cleanup": 2,
         "cosmetic": 18,
-        "feat": 51,
-        "fix": 77,
+        "feat": 52,
+        "fix": 78,
         "other": 16,
         "refactor": 5,
         "rename": 2,
@@ -164,13 +164,13 @@
         "security-fix": 2,
         "test": 27
       },
-      "fork_side_commit_count": 206,
+      "fork_side_commit_count": 208,
       "last_modified": {
         "author": "Jeff Emanuel",
         "classification": "fix",
-        "committed_at": "2026-09-10T22:10:15-04:00",
-        "sha": "0aa226ebd21cb29c1f09fd5e88c74989c10efaf3",
-        "subject": "fix(render): fence cold layouts and retire reads off the UI thread"
+        "committed_at": "2026-09-12T17:31:31-04:00",
+        "sha": "504b25e81b137d2d8176d7e5ba450f30fa3862dd",
+        "subject": "fix(mux): keep the nonblocking terminal lock through paint capture"
       },
       "name": "frankenterm-client",
       "path": "frankenterm/client",
@@ -232,8 +232,8 @@
         "chore": 3,
         "cleanup": 1,
         "cosmetic": 4,
-        "feat": 42,
-        "fix": 42,
+        "feat": 43,
+        "fix": 44,
         "other": 10,
         "refactor": 5,
         "rename": 1,
@@ -241,13 +241,13 @@
         "security-fix": 2,
         "test": 14
       },
-      "fork_side_commit_count": 132,
+      "fork_side_commit_count": 135,
       "last_modified": {
         "author": "Jeff Emanuel",
         "classification": "fix",
-        "committed_at": "2026-09-08T23:12:30-04:00",
-        "sha": "0ef03fb62a8385a0a2d24bd6f439554dd1e092b3",
-        "subject": "fix(scrollback): preserve queued history across reload and publication boundaries"
+        "committed_at": "2026-09-12T17:31:39-04:00",
+        "sha": "73fb08e34c9c9dc56c3e9131ef2f127eba672895",
+        "subject": "fix(gui): follow wgpu/quad/glyph-cache APIs after the selection floor"
       },
       "name": "config",
       "path": "frankenterm/config",
@@ -296,15 +296,16 @@
       "authors_raw": "[\"Wez Furlong <wez@wezfurlong.org>\"]",
       "classification_summary": {
         "feat": 3,
-        "fix": 1
+        "fix": 1,
+        "test": 1
       },
-      "fork_side_commit_count": 4,
+      "fork_side_commit_count": 5,
       "last_modified": {
         "author": "Jeff Emanuel",
-        "classification": "fix",
-        "committed_at": "2026-03-05T00:26:48-05:00",
-        "sha": "f87ecec3c4438cc29575576cd7157accd651f775",
-        "subject": "fix(clippy): resolve warnings across 15 crates \u2014 lifetime elision, deprecated APIs, idiomatic patterns"
+        "classification": "test",
+        "committed_at": "2026-09-12T17:31:34-04:00",
+        "sha": "2d8536c20c2e99eb40e337ca0f2ae5f7e7cad108",
+        "subject": "test(font): pin HarfBuzz function-table sharing across independent faces"
       },
       "name": "freetype",
       "path": "frankenterm/deps-freetype",
@@ -315,15 +316,16 @@
       "classification_summary": {
         "cosmetic": 1,
         "feat": 3,
-        "fix": 6
+        "fix": 6,
+        "test": 1
       },
-      "fork_side_commit_count": 10,
+      "fork_side_commit_count": 11,
       "last_modified": {
         "author": "Jeff Emanuel",
-        "classification": "fix",
-        "committed_at": "2026-05-18T19:10:27-04:00",
-        "sha": "1775a630f42b845d23b1678e8b0b2e917efbf832",
-        "subject": "fix(filedescriptor): repair poll timeout commit scope"
+        "classification": "test",
+        "committed_at": "2026-09-12T17:31:34-04:00",
+        "sha": "2d8536c20c2e99eb40e337ca0f2ae5f7e7cad108",
+        "subject": "test(font): pin HarfBuzz function-table sharing across independent faces"
       },
       "name": "harfbuzz",
       "path": "frankenterm/deps-harfbuzz",
@@ -448,15 +450,16 @@
         "fix": 19,
         "other": 4,
         "refactor": 1,
-        "rename": 1
+        "rename": 1,
+        "test": 1
       },
-      "fork_side_commit_count": 37,
+      "fork_side_commit_count": 38,
       "last_modified": {
         "author": "Jeff Emanuel",
-        "classification": "fix",
-        "committed_at": "2026-09-11T20:36:35-04:00",
-        "sha": "d91147f2a23c1386943fbf3372100a70d47ba678",
-        "subject": "fix(font): surface DirectWrite lookup errors and LLP64 seek offsets"
+        "classification": "test",
+        "committed_at": "2026-09-12T17:31:34-04:00",
+        "sha": "2d8536c20c2e99eb40e337ca0f2ae5f7e7cad108",
+        "subject": "test(font): pin HarfBuzz function-table sharing across independent faces"
       },
       "name": "frankenterm-font",
       "path": "frankenterm/font",
@@ -612,19 +615,19 @@
       "authors_raw": "[\"Wez Furlong <wez@wezfurlong.org>\"]",
       "classification_summary": {
         "cosmetic": 2,
-        "feat": 1,
+        "feat": 2,
         "fix": 3,
         "other": 2,
         "rename": 1,
         "test": 5
       },
-      "fork_side_commit_count": 14,
+      "fork_side_commit_count": 15,
       "last_modified": {
         "author": "Jeff Emanuel",
         "classification": "feat",
-        "committed_at": "2026-08-11T12:01:27-04:00",
-        "sha": "53b9e854768d4bb04a837e62f41a50dba79e258f",
-        "subject": "feat(session): host identity v5 (machine fence + process domain); schema v43"
+        "committed_at": "2026-09-12T15:27:50-04:00",
+        "sha": "fd49880b2110fb1f07b8f97f033056113f38275f",
+        "subject": "feat(config): selection-related TOML and lua enum construction"
       },
       "name": "luahelper",
       "path": "frankenterm/luahelper",
@@ -637,8 +640,8 @@
         "cleanup": 3,
         "cosmetic": 27,
         "docs": 6,
-        "feat": 186,
-        "fix": 204,
+        "feat": 187,
+        "fix": 206,
         "other": 38,
         "refactor": 11,
         "rename": 2,
@@ -646,13 +649,13 @@
         "security-fix": 7,
         "test": 73
       },
-      "fork_side_commit_count": 569,
+      "fork_side_commit_count": 572,
       "last_modified": {
         "author": "Jeff Emanuel",
-        "classification": "fix",
-        "committed_at": "2026-09-11T00:46:40-04:00",
-        "sha": "10de7e32518885e8ba3e5593d2608376e78c9486",
-        "subject": "fix(gui): bind selections to submitted layouts and preserve wrapped spaces"
+        "classification": "feat",
+        "committed_at": "2026-09-13T00:23:04-04:00",
+        "sha": "8e4407389a359933a65a60b237ffe19e40556bd2",
+        "subject": "feat(mux): capture pane title metadata without waiting on reflow"
       },
       "name": "mux",
       "path": "frankenterm/mux",
@@ -846,7 +849,7 @@
         "chore": 2,
         "cleanup": 1,
         "cosmetic": 7,
-        "feat": 13,
+        "feat": 14,
         "fix": 35,
         "other": 17,
         "refactor": 2,
@@ -854,13 +857,13 @@
         "security-fix": 2,
         "test": 20
       },
-      "fork_side_commit_count": 100,
+      "fork_side_commit_count": 101,
       "last_modified": {
         "author": "Jeff Emanuel",
-        "classification": "fix",
-        "committed_at": "2026-09-11T01:41:54-04:00",
-        "sha": "61a25a181e500a1366f4acf688a86d43184fea68",
-        "subject": "fix(selection): retain wide glyph columns and trim wrapped endpoints"
+        "classification": "feat",
+        "committed_at": "2026-09-12T15:27:49-04:00",
+        "sha": "a1785c951b81d4d86b11f1b7e58fe0d20ef4bdfb",
+        "subject": "feat(term): keep line/cell identity stable across selection snapshots"
       },
       "name": "frankenterm-surface",
       "path": "frankenterm/surface",
@@ -892,21 +895,21 @@
         "cleanup": 3,
         "cosmetic": 15,
         "docs": 1,
-        "feat": 52,
-        "fix": 92,
-        "other": 32,
+        "feat": 53,
+        "fix": 93,
+        "other": 34,
         "refactor": 5,
         "rename": 2,
         "security-fix": 6,
         "test": 47
       },
-      "fork_side_commit_count": 255,
+      "fork_side_commit_count": 259,
       "last_modified": {
         "author": "Jeff Emanuel",
-        "classification": "test",
-        "committed_at": "2026-09-10T23:12:15-04:00",
-        "sha": "cb38d6bef19cd81c438f15d3ca3bf649f30d0706",
-        "subject": "test(render): separate synchronous history parity from owned read guard"
+        "classification": "other",
+        "committed_at": "2026-09-13T00:46:26-04:00",
+        "sha": "60c27396323c5aed67add143cc02ca3589fe770f",
+        "subject": "perf(term): reuse prepared line wraps after concurrent output"
       },
       "name": "frankenterm-term",
       "path": "frankenterm/term",
@@ -1035,20 +1038,20 @@
         "cosmetic": 8,
         "docs": 2,
         "feat": 15,
-        "fix": 83,
+        "fix": 84,
         "other": 12,
         "refactor": 6,
         "rename": 1,
         "runtime-swap": 1,
         "test": 3
       },
-      "fork_side_commit_count": 135,
+      "fork_side_commit_count": 136,
       "last_modified": {
         "author": "Jeff Emanuel",
-        "classification": "docs",
-        "committed_at": "2026-09-08T19:25:25-04:00",
-        "sha": "c8e167ff7738c36fc13cd77a863a013b636d1e0e",
-        "subject": "docs(atlas): describe current footprint reporting"
+        "classification": "fix",
+        "committed_at": "2026-09-12T12:31:56-04:00",
+        "sha": "4bfb1d9fea21adcd583c356aade3399033f6d43f",
+        "subject": "fix(release): repair native Windows APIs and RC contract regressions"
       },
       "name": "window",
       "path": "frankenterm/window",
@@ -1061,8 +1064,8 @@
     "subject": "Import WezTerm source at 05343b38 as FrankenTerm owned code"
   },
   "fork_repo": "frankenterm",
-  "fork_side_commit_total": 2497,
-  "generated_at": "2026-09-12T10:32:30.716885Z",
+  "fork_side_commit_total": 2516,
+  "generated_at": "2026-09-13T05:20:30.980406Z",
   "produced_by": "scripts/regen-provenance.py",
   "schema_version": "1",
   "vendored_crate_count": 47,
